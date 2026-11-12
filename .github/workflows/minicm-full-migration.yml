@@ -1,4 +1,4 @@
-name: Migrate MiniCM Repositories to MiniCM-Project (All Branches)
+name: Migrate All MiniCM Repositories to MiniCM-Project (All Branches)
 
 on:
   workflow_dispatch:
@@ -60,7 +60,6 @@ jobs:
               echo "Repository already exists."
             fi
 
-            # Mirror clone to capture ALL branches and tags
             git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
             cd "$repo_name"
 
@@ -74,10 +73,10 @@ jobs:
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing all branches and tags..."
-            git push --mirror origin
+            echo "Pushing valid branches and tags..."
+            git push origin '+refs/heads/*:refs/heads/*'
+            git push origin '+refs/tags/*:refs/tags/*'
 
-            # Ensure default branch is set to main
             default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
             if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
               gh repo edit "$target_repo" --default-branch "main" || true
@@ -158,7 +157,10 @@ jobs:
 
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
-            git push --mirror origin
+            
+            echo "Pushing valid branches and tags..."
+            git push origin '+refs/heads/*:refs/heads/*'
+            git push origin '+refs/tags/*:refs/tags/*'
 
             default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
             if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
@@ -239,7 +241,10 @@ jobs:
 
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
-            git push --mirror origin
+            
+            echo "Pushing valid branches and tags..."
+            git push origin '+refs/heads/*:refs/heads/*'
+            git push origin '+refs/tags/*:refs/tags/*'
 
             default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
             if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
