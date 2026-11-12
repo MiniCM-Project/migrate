@@ -1,4 +1,4 @@
-name: Migrate All MiniCM Repositories to MiniCM-Project (All Branches)
+name: Migrate All MiniCM Repositories (Auto-Default Branch by Commit Count)
 
 on:
   workflow_dispatch:
@@ -63,8 +63,8 @@ jobs:
             git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
             cd "$repo_name"
 
-            echo "Rewriting history across all refs..."
-            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+            echo "Rewriting history and stripping oversized media files..."
+            git filter-repo --path media/tests/content/media_api/videoeditor/H264_BP_640x480_15fps_384kbps_60_0.mp4 --invert-path --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force || true
 
             git config http.postBuffer 524288000
             git config http.maxRequestBuffer 100M
@@ -73,14 +73,25 @@ jobs:
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing valid branches and tags..."
+            echo "Pushing all valid branches and tags..."
             git push origin '+refs/heads/*:refs/heads/*'
             git push origin '+refs/tags/*:refs/tags/*'
 
-            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
-            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
-              gh repo edit "$target_repo" --default-branch "main" || true
-            fi
+            # Automatically find branch with the most commits to set as default
+            best_branch="main"
+            max_commits=-1
+            while read -r sha ref; do
+              if [ -n "$sha" ] && [ -n "$ref" ]; then
+                count=$(git rev-list --count "$sha" 2>/dev/null || echo 0)
+                if [ "$count" -gt "$max_commits" ]; then
+                  max_commits=$count
+                  best_branch="$ref"
+                fi
+              fi
+            done < <(git for-each-ref --format='%(objectname) %(refname:short)' refs/heads/)
+
+            echo "Setting default branch to '$best_branch' ($max_commits commits)..."
+            gh repo edit "$target_repo" --default-branch "$best_branch" || true
 
             cd ..
             rm -rf "$repo_name"
@@ -158,14 +169,24 @@ jobs:
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing valid branches and tags..."
+            echo "Pushing all valid branches and tags..."
             git push origin '+refs/heads/*:refs/heads/*'
             git push origin '+refs/tags/*:refs/tags/*'
 
-            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
-            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
-              gh repo edit "$target_repo" --default-branch "main" || true
-            fi
+            best_branch="main"
+            max_commits=-1
+            while read -r sha ref; do
+              if [ -n "$sha" ] && [ -n "$ref" ]; then
+                count=$(git rev-list --count "$sha" 2>/dev/null || echo 0)
+                if [ "$count" -gt "$max_commits" ]; then
+                  max_commits=$count
+                  best_branch="$ref"
+                fi
+              fi
+            done < <(git for-each-ref --format='%(objectname) %(refname:short)' refs/heads/)
+
+            echo "Setting default branch to '$best_branch' ($max_commits commits)..."
+            gh repo edit "$target_repo" --default-branch "$best_branch" || true
 
             cd ..
             rm -rf "$repo_name"
@@ -242,14 +263,24 @@ jobs:
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing valid branches and tags..."
+            echo "Pushing all valid branches and tags..."
             git push origin '+refs/heads/*:refs/heads/*'
             git push origin '+refs/tags/*:refs/tags/*'
 
-            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
-            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
-              gh repo edit "$target_repo" --default-branch "main" || true
-            fi
+            best_branch="main"
+            max_commits=-1
+            while read -r sha ref; do
+              if [ -n "$sha" ] && [ -n "$ref" ]; then
+                count=$(git rev-list --count "$sha" 2>/dev/null || echo 0)
+                if [ "$count" -gt "$max_commits" ]; then
+                  max_commits=$count
+                  best_branch="$ref"
+                fi
+              fi
+            done < <(git for-each-ref --format='%(objectname) %(refname:short)' refs/heads/)
+
+            echo "Setting default branch to '$best_branch' ($max_commits commits)..."
+            gh repo edit "$target_repo" --default-branch "$best_branch" || true
 
             cd ..
             rm -rf "$repo_name"
