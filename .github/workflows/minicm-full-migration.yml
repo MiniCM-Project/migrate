@@ -1,10 +1,10 @@
-name: Resume MiniCM Migration (Batch 3 from android_prebuilt)
+name: Resume MiniCM Migration (Batch 3 Remaining)
 
 on:
   workflow_dispatch:
 
 jobs:
-  migrate_minicm_batch_3_resume:
+  migrate_remaining_batch_3:
     runs-on: ubuntu-latest
     steps:
       - name: Install git-filter-repo & GitHub CLI
@@ -16,13 +16,12 @@ jobs:
         run: |
           echo "$GH_PAT" | gh auth login --with-token
 
-      - name: Run Resume Migration (Batch 3 Remaining)
+      - name: Run Migration for Remaining Batch 3 Repositories
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           repos=(
-            "MiniCM/android_prebuilt|MiniCM-Project/android_prebuilt"
             "MiniCM/android_system_netd|MiniCM-Project/android_system_netd"
             "MiniCM/android_vendor_cm|MiniCM-Project/android_vendor_cm"
             "MiniCM/android_frameworks_av|MiniCM-Project/android_frameworks_av"
@@ -60,10 +59,10 @@ jobs:
             git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
             cd "$repo_name"
 
-            echo "Rewriting history across all refs..."
-            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+            echo "Stripping oversized blobs (>50M) and rewriting history..."
+            git filter-repo --strip-blobs-bigger-than 50M --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
 
-            echo "Running aggressive garbage collection to minimize pack size..."
+            echo "Running aggressive garbage collection..."
             git config pack.windowMemory 10m
             git config pack.packSizeLimit 1g
             git gc --aggressive --prune=now
@@ -74,7 +73,7 @@ jobs:
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing branches individually to avoid 2GB pack size limits..."
+            echo "Pushing branches individually..."
             while read -r branch; do
               if [ -n "$branch" ]; then
                 echo "Pushing branch: $branch"
