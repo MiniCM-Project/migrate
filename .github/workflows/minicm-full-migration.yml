@@ -1,10 +1,10 @@
-name: Migrate All MiniCM Repositories (Auto-Default Branch by Commit Count)
+name: Resume MiniCM Migration (Batch 3 from android_prebuilt)
 
 on:
   workflow_dispatch:
 
 jobs:
-  migrate_minicm_batch_1:
+  migrate_minicm_batch_3_resume:
     runs-on: ubuntu-latest
     steps:
       - name: Install git-filter-repo & GitHub CLI
@@ -16,206 +16,12 @@ jobs:
         run: |
           echo "$GH_PAT" | gh auth login --with-token
 
-      - name: Run Migration (Batch 1)
+      - name: Run Resume Migration (Batch 3 Remaining)
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           repos=(
-            "MiniCM/android_frameworks_base|MiniCM-Project/android_frameworks_base"
-            "MiniCM/android_external_webkit|MiniCM-Project/android_external_webkit"
-            "MiniCM/android_packages_apps_CMParts|MiniCM-Project/android_packages_apps_CMParts"
-            "MiniCM/android_packages_apps_Torch|MiniCM-Project/android_packages_apps_Torch"
-            "MiniCM/android_packages_apps_Camera|MiniCM-Project/android_packages_apps_Camera"
-            "MiniCM/android_system_vold|MiniCM-Project/android_system_vold"
-            "MiniCM/android_vendor_cyanogen|MiniCM-Project/android_vendor_cyanogen"
-            "MiniCM/android_device_semc_robyn|MiniCM-Project/android_device_semc_robyn"
-            "MiniCM/android_bootable_recovery|MiniCM-Project/android_bootable_recovery"
-            "MiniCM/android_device_semc_shakira|MiniCM-Project/android_device_semc_shakira"
-            "MiniCM/android_packages_apps_FileManager|MiniCM-Project/android_packages_apps_FileManager"
-            "MiniCM/android_device_semc_mimmi|MiniCM-Project/android_device_semc_mimmi"
-            "MiniCM/android_device_semc_msm7x27-common|MiniCM-Project/android_device_semc_msm7x27-common"
-            "MiniCM/android_vendor_semc|MiniCM-Project/android_vendor_semc"
-            "MiniCM/android_packages_apps_Phone|MiniCM-Project/android_packages_apps_Phone"
-          )
-
-          for item in "${repos[@]}"; do
-            IFS="|" read -r source_repo target_repo <<< "$item"
-            repo_name=$(basename "$target_repo")
-
-            echo "=================================================="
-            echo "Migrating: $source_repo -> $target_repo"
-            echo "=================================================="
-
-            desc=$(gh api "repos/$source_repo" --jq '.description // ""' 2>/dev/null || echo "")
-
-            if ! gh repo view "$target_repo" >/dev/null 2>&1; then
-              if [ -n "$desc" ]; then
-                gh repo create "$target_repo" --public --description "$desc" || true
-              else
-                gh repo create "$target_repo" --public || true
-              fi
-              sleep 15
-            else
-              echo "Repository already exists."
-            fi
-
-            git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
-            cd "$repo_name"
-
-            echo "Rewriting history and stripping oversized media files..."
-            git filter-repo --path media/tests/content/media_api/videoeditor/H264_BP_640x480_15fps_384kbps_60_0.mp4 --invert-path --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force || true
-
-            git config http.postBuffer 524288000
-            git config http.maxRequestBuffer 100M
-            git config core.compression 0
-
-            git remote remove origin || true
-            git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
-            
-            echo "Pushing all valid branches and tags..."
-            git push origin '+refs/heads/*:refs/heads/*'
-            git push origin '+refs/tags/*:refs/tags/*'
-
-            # Automatically find branch with the most commits to set as default
-            best_branch="main"
-            max_commits=-1
-            while read -r sha ref; do
-              if [ -n "$sha" ] && [ -n "$ref" ]; then
-                count=$(git rev-list --count "$sha" 2>/dev/null || echo 0)
-                if [ "$count" -gt "$max_commits" ]; then
-                  max_commits=$count
-                  best_branch="$ref"
-                fi
-              fi
-            done < <(git for-each-ref --format='%(objectname) %(refname:short)' refs/heads/)
-
-            echo "Setting default branch to '$best_branch' ($max_commits commits)..."
-            gh repo edit "$target_repo" --default-branch "$best_branch" || true
-
-            cd ..
-            rm -rf "$repo_name"
-
-            echo "Completed $target_repo. Waiting 4 minutes (240 seconds)..."
-            sleep 240
-          done
-
-  migrate_minicm_batch_2:
-    needs: migrate_minicm_batch_1
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install git-filter-repo & GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y git-filter-repo python3-git gh
-
-      - name: Authenticate GitHub CLI
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          echo "$GH_PAT" | gh auth login --with-token
-
-      - name: Run Migration (Batch 2)
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          repos=(
-            "MiniCM/android_packages_wallpapers_MagicSmoke|MiniCM-Project/android_packages_wallpapers_MagicSmoke"
-            "MiniCM/android_system_bluetooth|MiniCM-Project/android_system_bluetooth"
-            "MiniCM/android_vendor_tmobile_themes_Androidian|MiniCM-Project/android_vendor_tmobile_themes_Androidian"
-            "MiniCM/android_vendor_tmobile_themes_Cyanbread|MiniCM-Project/android_vendor_tmobile_themes_Cyanbread"
-            "MiniCM/android|MiniCM-Project/android"
-            "MiniCM/android_packages_apps_Settings|MiniCM-Project/android_packages_apps_Settings"
-            "MiniCM/android_external_hostapd|MiniCM-Project/android_external_hostapd"
-            "MiniCM/android_system_core|MiniCM-Project/android_system_core"
-            "MiniCM/android_build|MiniCM-Project/android_build"
-            "MiniCM/android_vendor_qcom_opensource_omx_mm-core|MiniCM-Project/android_vendor_qcom_opensource_omx_mm-core"
-            "MiniCM/android_vendor_qcom_opensource_omx_mm-video|MiniCM-Project/android_vendor_qcom_opensource_omx_mm-video"
-            "MiniCM/android_external_bluetooth_bluez|MiniCM-Project/android_external_bluetooth_bluez"
-            "MiniCM/android_hardware_libhardware_legacy|MiniCM-Project/android_hardware_libhardware_legacy"
-            "MiniCM/android_hardware_qcom_display|MiniCM-Project/android_hardware_qcom_display"
-            "MiniCM/android_hardware_qcom_media|MiniCM-Project/android_hardware_qcom_media"
-          )
-
-          for item in "${repos[@]}"; do
-            IFS="|" read -r source_repo target_repo <<< "$item"
-            repo_name=$(basename "$target_repo")
-
-            echo "=================================================="
-            echo "Migrating: $source_repo -> $target_repo"
-            echo "=================================================="
-
-            desc=$(gh api "repos/$source_repo" --jq '.description // ""' 2>/dev/null || echo "")
-
-            if ! gh repo view "$target_repo" >/dev/null 2>&1; then
-              if [ -n "$desc" ]; then
-                gh repo create "$target_repo" --public --description "$desc" || true
-              else
-                gh repo create "$target_repo" --public || true
-              fi
-              sleep 15
-            else
-              echo "Repository already exists."
-            fi
-
-            git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
-            cd "$repo_name"
-
-            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
-
-            git config http.postBuffer 524288000
-            git config http.maxRequestBuffer 100M
-            git config core.compression 0
-
-            git remote remove origin || true
-            git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
-            
-            echo "Pushing all valid branches and tags..."
-            git push origin '+refs/heads/*:refs/heads/*'
-            git push origin '+refs/tags/*:refs/tags/*'
-
-            best_branch="main"
-            max_commits=-1
-            while read -r sha ref; do
-              if [ -n "$sha" ] && [ -n "$ref" ]; then
-                count=$(git rev-list --count "$sha" 2>/dev/null || echo 0)
-                if [ "$count" -gt "$max_commits" ]; then
-                  max_commits=$count
-                  best_branch="$ref"
-                fi
-              fi
-            done < <(git for-each-ref --format='%(objectname) %(refname:short)' refs/heads/)
-
-            echo "Setting default branch to '$best_branch' ($max_commits commits)..."
-            gh repo edit "$target_repo" --default-branch "$best_branch" || true
-
-            cd ..
-            rm -rf "$repo_name"
-
-            echo "Completed $target_repo. Waiting 4 minutes (240 seconds)..."
-            sleep 240
-          done
-
-  migrate_minicm_batch_3:
-    needs: migrate_minicm_batch_2
-    runs-on: ubuntu-latest
-    steps:
-      - name: Install git-filter-repo & GitHub CLI
-        run: sudo apt-get update && sudo apt-get install -y git-filter-repo python3-git gh
-
-      - name: Authenticate GitHub CLI
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          echo "$GH_PAT" | gh auth login --with-token
-
-      - name: Run Migration (Batch 3)
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          repos=(
-            "MiniCM/android_packages_apps_Superuser|MiniCM-Project/android_packages_apps_Superuser"
-            "MiniCM/android_packages_apps_Trebuchet|MiniCM-Project/android_packages_apps_Trebuchet"
             "MiniCM/android_prebuilt|MiniCM-Project/android_prebuilt"
             "MiniCM/android_system_netd|MiniCM-Project/android_system_netd"
             "MiniCM/android_vendor_cm|MiniCM-Project/android_vendor_cm"
@@ -254,19 +60,32 @@ jobs:
             git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
             cd "$repo_name"
 
+            echo "Rewriting history across all refs..."
             git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+
+            echo "Running aggressive garbage collection to minimize pack size..."
+            git config pack.windowMemory 10m
+            git config pack.packSizeLimit 1g
+            git gc --aggressive --prune=now
 
             git config http.postBuffer 524288000
             git config http.maxRequestBuffer 100M
-            git config core.compression 0
 
             git remote remove origin || true
             git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
             
-            echo "Pushing all valid branches and tags..."
-            git push origin '+refs/heads/*:refs/heads/*'
-            git push origin '+refs/tags/*:refs/tags/*'
+            echo "Pushing branches individually to avoid 2GB pack size limits..."
+            while read -r branch; do
+              if [ -n "$branch" ]; then
+                echo "Pushing branch: $branch"
+                git push origin "refs/heads/$branch:refs/heads/$branch" --force || true
+              fi
+            done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
 
+            echo "Pushing tags..."
+            git push origin --tags --force || true
+
+            # Automatically find branch with the most commits to set as default
             best_branch="main"
             max_commits=-1
             while read -r sha ref; do
