@@ -1,0 +1,254 @@
+name: Migrate MiniCM Repositories to MiniCM-Project (All Branches)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate_minicm_batch_1:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install git-filter-repo & GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y git-filter-repo python3-git gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          echo "$GH_PAT" | gh auth login --with-token
+
+      - name: Run Migration (Batch 1)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          repos=(
+            "MiniCM/android_frameworks_base|MiniCM-Project/android_frameworks_base"
+            "MiniCM/android_external_webkit|MiniCM-Project/android_external_webkit"
+            "MiniCM/android_packages_apps_CMParts|MiniCM-Project/android_packages_apps_CMParts"
+            "MiniCM/android_packages_apps_Torch|MiniCM-Project/android_packages_apps_Torch"
+            "MiniCM/android_packages_apps_Camera|MiniCM-Project/android_packages_apps_Camera"
+            "MiniCM/android_system_vold|MiniCM-Project/android_system_vold"
+            "MiniCM/android_vendor_cyanogen|MiniCM-Project/android_vendor_cyanogen"
+            "MiniCM/android_device_semc_robyn|MiniCM-Project/android_device_semc_robyn"
+            "MiniCM/android_bootable_recovery|MiniCM-Project/android_bootable_recovery"
+            "MiniCM/android_device_semc_shakira|MiniCM-Project/android_device_semc_shakira"
+            "MiniCM/android_packages_apps_FileManager|MiniCM-Project/android_packages_apps_FileManager"
+            "MiniCM/android_device_semc_mimmi|MiniCM-Project/android_device_semc_mimmi"
+            "MiniCM/android_device_semc_msm7x27-common|MiniCM-Project/android_device_semc_msm7x27-common"
+            "MiniCM/android_vendor_semc|MiniCM-Project/android_vendor_semc"
+            "MiniCM/android_packages_apps_Phone|MiniCM-Project/android_packages_apps_Phone"
+          )
+
+          for item in "${repos[@]}"; do
+            IFS="|" read -r source_repo target_repo <<< "$item"
+            repo_name=$(basename "$target_repo")
+
+            echo "=================================================="
+            echo "Migrating: $source_repo -> $target_repo"
+            echo "=================================================="
+
+            desc=$(gh api "repos/$source_repo" --jq '.description // ""' 2>/dev/null || echo "")
+
+            if ! gh repo view "$target_repo" >/dev/null 2>&1; then
+              if [ -n "$desc" ]; then
+                gh repo create "$target_repo" --public --description "$desc" || true
+              else
+                gh repo create "$target_repo" --public || true
+              fi
+              sleep 15
+            else
+              echo "Repository already exists."
+            fi
+
+            # Mirror clone to capture ALL branches and tags
+            git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
+            cd "$repo_name"
+
+            echo "Rewriting history across all refs..."
+            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+
+            git config http.postBuffer 524288000
+            git config http.maxRequestBuffer 100M
+            git config core.compression 0
+
+            git remote remove origin || true
+            git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
+            
+            echo "Pushing all branches and tags..."
+            git push --mirror origin
+
+            # Ensure default branch is set to main
+            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
+            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
+              gh repo edit "$target_repo" --default-branch "main" || true
+            fi
+
+            cd ..
+            rm -rf "$repo_name"
+
+            echo "Completed $target_repo. Waiting 4 minutes (240 seconds)..."
+            sleep 240
+          done
+
+  migrate_minicm_batch_2:
+    needs: migrate_minicm_batch_1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install git-filter-repo & GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y git-filter-repo python3-git gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          echo "$GH_PAT" | gh auth login --with-token
+
+      - name: Run Migration (Batch 2)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          repos=(
+            "MiniCM/android_packages_wallpapers_MagicSmoke|MiniCM-Project/android_packages_wallpapers_MagicSmoke"
+            "MiniCM/android_system_bluetooth|MiniCM-Project/android_system_bluetooth"
+            "MiniCM/android_vendor_tmobile_themes_Androidian|MiniCM-Project/android_vendor_tmobile_themes_Androidian"
+            "MiniCM/android_vendor_tmobile_themes_Cyanbread|MiniCM-Project/android_vendor_tmobile_themes_Cyanbread"
+            "MiniCM/android|MiniCM-Project/android"
+            "MiniCM/android_packages_apps_Settings|MiniCM-Project/android_packages_apps_Settings"
+            "MiniCM/android_external_hostapd|MiniCM-Project/android_external_hostapd"
+            "MiniCM/android_system_core|MiniCM-Project/android_system_core"
+            "MiniCM/android_build|MiniCM-Project/android_build"
+            "MiniCM/android_vendor_qcom_opensource_omx_mm-core|MiniCM-Project/android_vendor_qcom_opensource_omx_mm-core"
+            "MiniCM/android_vendor_qcom_opensource_omx_mm-video|MiniCM-Project/android_vendor_qcom_opensource_omx_mm-video"
+            "MiniCM/android_external_bluetooth_bluez|MiniCM-Project/android_external_bluetooth_bluez"
+            "MiniCM/android_hardware_libhardware_legacy|MiniCM-Project/android_hardware_libhardware_legacy"
+            "MiniCM/android_hardware_qcom_display|MiniCM-Project/android_hardware_qcom_display"
+            "MiniCM/android_hardware_qcom_media|MiniCM-Project/android_hardware_qcom_media"
+          )
+
+          for item in "${repos[@]}"; do
+            IFS="|" read -r source_repo target_repo <<< "$item"
+            repo_name=$(basename "$target_repo")
+
+            echo "=================================================="
+            echo "Migrating: $source_repo -> $target_repo"
+            echo "=================================================="
+
+            desc=$(gh api "repos/$source_repo" --jq '.description // ""' 2>/dev/null || echo "")
+
+            if ! gh repo view "$target_repo" >/dev/null 2>&1; then
+              if [ -n "$desc" ]; then
+                gh repo create "$target_repo" --public --description "$desc" || true
+              else
+                gh repo create "$target_repo" --public || true
+              fi
+              sleep 15
+            else
+              echo "Repository already exists."
+            fi
+
+            git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
+            cd "$repo_name"
+
+            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+
+            git config http.postBuffer 524288000
+            git config http.maxRequestBuffer 100M
+            git config core.compression 0
+
+            git remote remove origin || true
+            git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
+            git push --mirror origin
+
+            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
+            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
+              gh repo edit "$target_repo" --default-branch "main" || true
+            fi
+
+            cd ..
+            rm -rf "$repo_name"
+
+            echo "Completed $target_repo. Waiting 4 minutes (240 seconds)..."
+            sleep 240
+          done
+
+  migrate_minicm_batch_3:
+    needs: migrate_minicm_batch_2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install git-filter-repo & GitHub CLI
+        run: sudo apt-get update && sudo apt-get install -y git-filter-repo python3-git gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          echo "$GH_PAT" | gh auth login --with-token
+
+      - name: Run Migration (Batch 3)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          repos=(
+            "MiniCM/android_packages_apps_Superuser|MiniCM-Project/android_packages_apps_Superuser"
+            "MiniCM/android_packages_apps_Trebuchet|MiniCM-Project/android_packages_apps_Trebuchet"
+            "MiniCM/android_prebuilt|MiniCM-Project/android_prebuilt"
+            "MiniCM/android_system_netd|MiniCM-Project/android_system_netd"
+            "MiniCM/android_vendor_cm|MiniCM-Project/android_vendor_cm"
+            "MiniCM/android_frameworks_av|MiniCM-Project/android_frameworks_av"
+            "MiniCM/android_frameworks_native|MiniCM-Project/android_frameworks_native"
+            "MiniCM/android_hardware_ti_wlan|MiniCM-Project/android_hardware_ti_wlan"
+            "MiniCM/android_hardware_libhardware|MiniCM-Project/android_hardware_libhardware"
+            "MiniCM/android_packages_apps_LegacyCamera|MiniCM-Project/android_packages_apps_LegacyCamera"
+            "MiniCM/android_packages_apps_Gallery2|MiniCM-Project/android_packages_apps_Gallery2"
+            "MiniCM/android_packages_apps_CMUpdater|MiniCM-Project/android_packages_apps_CMUpdater"
+            "MiniCM/android_hardware_ti_fmradio|MiniCM-Project/android_hardware_ti_fmradio"
+            "MiniCM/android_bionic|MiniCM-Project/android_bionic"
+          )
+
+          for item in "${repos[@]}"; do
+            IFS="|" read -r source_repo target_repo <<< "$item"
+            repo_name=$(basename "$target_repo")
+
+            echo "=================================================="
+            echo "Migrating: $source_repo -> $target_repo"
+            echo "=================================================="
+
+            desc=$(gh api "repos/$source_repo" --jq '.description // ""' 2>/dev/null || echo "")
+
+            if ! gh repo view "$target_repo" >/dev/null 2>&1; then
+              if [ -n "$desc" ]; then
+                gh repo create "$target_repo" --public --description "$desc" || true
+              else
+                gh repo create "$target_repo" --public || true
+              fi
+              sleep 15
+            else
+              echo "Repository already exists."
+            fi
+
+            git clone --mirror "https://x-access-token:${GH_PAT}@github.com/$source_repo.git" "$repo_name"
+            cd "$repo_name"
+
+            git filter-repo --name-callback 'return b"nobodyAtall-code"' --email-callback 'return b"hashyofficial@gmail.com"' --force
+
+            git config http.postBuffer 524288000
+            git config http.maxRequestBuffer 100M
+            git config core.compression 0
+
+            git remote remove origin || true
+            git remote add origin "https://x-access-token:${GH_PAT}@github.com/$target_repo.git"
+            git push --mirror origin
+
+            default_branch=$(gh api "repos/$target_repo" --jq '.default_branch' 2>/dev/null || echo "main")
+            if [ "$default_branch" != "main" ] && git ls-remote --heads origin main | grep -q main; then
+              gh repo edit "$target_repo" --default-branch "main" || true
+            fi
+
+            cd ..
+            rm -rf "$repo_name"
+
+            echo "Completed $target_repo. Waiting 4 minutes (240 seconds)..."
+            sleep 240
+          done
